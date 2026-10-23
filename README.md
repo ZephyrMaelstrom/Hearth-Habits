@@ -5,7 +5,15 @@ your hero levels up, and a balancing engine keeps the rewards fair, so a hard,
 dreaded task pays more than an easy one and spamming taps can't buy levels.
 
 **Play it:** <https://zephyrmaelstrom.github.io/Hearth-Habits/>
+**Phase 2 preview:** <https://zephyrmaelstrom.github.io/Hearth-Habits/preview/> (separate save)
 Install it from the browser to your home screen; it works offline.
+
+## What's in Phase 2 (the game layer, on the `phase-2` branch)
+
+Classes and skill trees, nine-slot gear (drops only), pets, a weekly boss in
+three rotations, parties with Cheers and Rescues, daily bounties, the Vault
+(Coffers and Debt Dragons), simple Epics and 30 achievements. None of it
+changes task XP. See [docs/PHASE2_NOTES.md](docs/PHASE2_NOTES.md).
 
 ## What's in this build (Phase 1: the core loop)
 
@@ -35,8 +43,7 @@ Install it from the browser to your home screen; it works offline.
 - **Tester report.** Settings shows Gate 1 numbers (days opened, Dailies in
   week 1 and week 2).
 
-Classes, Epics, the Vault, bosses, parties and guilds come in Phase 2 and
-later. The full plan is in the design document.
+The full plan is in the design document.
 
 ## Setup
 
@@ -53,7 +60,7 @@ npm test
 
 | Folder | What's there |
 | --- | --- |
-| `src/engine` | Game rules with no UI: pricing, levels, Momentum, day rollover, actions, Ember's messages, tester metrics. `rules.ts` holds every tuning number from Phase 0. |
-| `src/store` | Saved state (localStorage), Firebase sync, install prompt. |
+| `src/engine` | Game rules with no UI: pricing, levels, Momentum, day rollover, actions, Ember's messages, tester metrics. `rules.ts` holds every tuning number (`RULES` from Phase 0, `P2` for Phase 2). Phase 2 adds `combat.ts`, `boss.ts` (the shared fight resolver), `loot.ts`, `game.ts`, `bounties.ts`, `vault.ts`, `epics.ts`, `social.ts`, `achievements.ts` and `content/`. |
+| `src/store` | Saved state (localStorage), Firebase sync, party sync, install prompt. |
 | `src/ui` | React screens: Today, Hero, Rewards, Settings, onboarding, task editor, Ember's panel. |
-| `tests` | Engine tests that re-check the Phase 0 balancing numbers, plus a full play-through of the app. |
+| `tests` | Engine tests that re-check the Phase 0 balancing numbers, Phase 2 tests (with a boss-week simulator in `sim.ts`), plus a full play-through of the app. |

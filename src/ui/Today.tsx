@@ -10,15 +10,17 @@ import { unreadCount } from '../engine/wisp';
 import { act, useGame } from '../store/store';
 import { Bar, Icon } from './components';
 import { scheduleText } from './TaskEditor';
+import { BossMini, Bounties } from './TodayQuest';
 
 interface Props {
+  openQuest: () => void;
   openEditor: (id?: string) => void;
   openWisp: () => void;
   onWispAction: (m: WispMessage, i: number) => void;
   toast: (m: string) => void;
 }
 
-export function Today({ openEditor, openWisp, onWispAction, toast }: Props) {
+export function Today({ openEditor, openWisp, onWispAction, toast, openQuest }: Props) {
   const s = useGame();
   const log = s.days[s.today];
   const lp = levelProgress(s.xp);
@@ -108,6 +110,9 @@ export function Today({ openEditor, openWisp, onWispAction, toast }: Props) {
           </div>
         </div>
       )}
+
+      <BossMini s={s} open={openQuest} />
+      <Bounties s={s} toast={toast} />
 
       <section className="stack" aria-labelledby="dailies-h">
         <div className="section-head">

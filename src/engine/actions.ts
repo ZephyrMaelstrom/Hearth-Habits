@@ -1,19 +1,25 @@
 // Every change a player can make. Each action takes a State and returns a new one
 // (the input is never mutated), so the UI, tests and sync all see the same thing.
 
-import { addDays, weekStart } from './dates';
+import { addDays, daysBetween, weekStart } from './dates';
 import { tierOfTask } from './pricing';
 import { activeDailies, dailySlots, harmony, levelFromXp, traitBonus, TRAIT_NAMES, STAT_LABEL } from './progress';
-import { RULES, UNLOCKS } from './rules';
+import { P2, RULES, UNLOCKS } from './rules';
 import { completionFor, habitTaps, liveStreak, round2, scheduledDailies, uid } from './state';
 import { itemById, SHOP } from './shop';
 import { dismiss as wispDismiss, say, unmute as wispUnmute } from './wisp';
-import { UNLOCK_TEXT } from './rollover';
+import { UNLOCK_TEXT } from './unlocks';
+import { hitFor, profile, surgeFits, xpBuff } from './combat';
+import { dropText, removeDrop, rollTaskDrop } from './loot';
+import { POTIONS, SPECIES, speciesById } from './content/pets';
+import { pick, rng } from './rng';
+import { ensureBounties } from './bounties';
 import type { Completion, Stat, State, Task, TaskType, Tone, WispKind } from './types';
 
-export type Result = { state: State; error?: string };
+/** `events` are short lines for the player (loot found, a crit), shown as toasts. */
+export type Result = { state: State; error?: string; events?: string[] };
 
-function draft(state: State): State {
+export function draft(state: State): State {
   const s = structuredClone(state);
   s.updatedAt = Date.now();
   return s;
@@ -131,7 +137,11 @@ export function restToday(state: State, id: string): Result {
 
 // ------------------------------------------------------------------ rewards for finishing
 
-function award(s: State, t: Task, kind: 'complete' | 'habitPlus'): Completion {
+export interface AwardOpts {
+  source?: 'task' | 'vault' | 'vaultBonus';
+}
+
+export function award(s: State, t: Task, kind: 'complete' | 'habitPlus', opts: AwardOpts = {}): Completion {
   const day = s.today;
   const log = s.days[day];
   const tier = tierOfTask(t);
@@ -145,20 +155,24 @@ function award(s: State, t: Task, kind: 'complete' | 'habitPlus'): Completion {
     base *= RULES.sameDayTodo;
     goldBase *= RULES.sameDayTodo;
   }
+  const now = Date.now();
+  const p = profile(s);
   const spark = !log.sparkUsed;
   const self = base + (spark ? RULES.spark : 0);
   const ceilingLeft = Math.max(0, RULES.dayCeiling - log.selfCounted);
   const weekLeft = Math.max(0, RULES.weekCap - s.week.selfCounted);
   const counted = Math.min(self, ceilingLeft, weekLeft);
-  const mult = round2(log.momentumStart * (1 + harmony(s).bonus) * (1 + traitBonus(s, t.stats)));
+  const mult = round2(log.momentumStart * (1 + harmony(s).bonus) * (1 + traitBonus(s, t.stats)) * (1 + xpBuff(s, now)));
   const xp = round2(counted * mult);
-  const gold = self > 0 ? Math.round(goldBase * (counted / self) * log.momentumStart) : 0;
+  const gold = self > 0 ? Math.round(goldBase * (counted / self) * log.momentumStart * (1 + p.gold)) : 0;
+  const n = s.completions.filter((c) => c.taskId === t.id && c.day === day && c.kind === kind).length;
+  const seed = `${t.id}|${day}|${kind}|${n}`;
   const c: Completion = {
     id: uid(),
     taskId: t.id,
     kind,
     day,
-    ts: Date.now(),
+    ts: now,
     tier: tier.name,
     base,
     spark,
@@ -168,6 +182,8 @@ function award(s: State, t: Task, kind: 'complete' | 'habitPlus'): Completion {
     gold,
     stats: [...t.stats],
   };
+  if (opts.source && opts.source !== 'task') c.source = opts.source;
+  const level = levelFromXp(s.xp);
   log.selfCounted += counted;
   s.week.selfCounted += counted;
   log.xp = round2(log.xp + xp);
@@ -176,24 +192,86 @@ function award(s: State, t: Task, kind: 'complete' | 'habitPlus'): Completion {
   s.xp = round2(s.xp + xp);
   s.gold += gold;
   for (const st of t.stats) s.statXp[st] = round2((s.statXp[st] ?? 0) + xp / t.stats.length);
+
+  // ---- Phase 2: boss damage, loot, pet growth, Mana, rescues
+  const hitBase = self > 0 ? counted * (base / self) : 0;
+  let surge = false;
+  if (s.combat.surgeArmed && hitBase > 0 && surgeFits(tier.name, p.effects)) {
+    surge = true;
+    s.combat.surgeArmed = false;
+  }
+  const h = hitFor(p, { stats: t.stats, hitBase, ts: now, seed, surge });
+  if (h.dmg > 0) {
+    c.hit = h.dmg;
+    if (h.crit) c.crit = true;
+    if (surge) c.surge = true;
+  }
+  if (t.type === 'todo' && t.due && daysBetween(t.due, day) >= P2.boss.procrastOldDays) c.old = true;
+  if (level >= 3 && counted > 0) {
+    const d = rollTaskDrop(s, seed, tier.name);
+    if (d) c.drop = d;
+  }
+  const pet = s.pets.find((x) => x.id === s.activePet);
+  if (pet && hitBase > 0 && t.stats.includes(speciesById(pet.species).stat)) {
+    const g = Math.round(hitBase);
+    pet.xp += g;
+    c.petId = pet.id;
+    c.petXp = g;
+  }
+  if (s.cls && p.effects.leyTap && hitBase > 0 && (tier.name === 'Hard' || tier.name === 'Epic')) {
+    const g = Math.max(0, Math.min(p.maxMana - s.mana, p.effects.leyTap));
+    if (g > 0) {
+      s.mana += g;
+      c.manaGain = g;
+    }
+  }
+  if (s.social.pendingRescue && counted > 0) {
+    s.social.rescues.push({ id: uid(), to: s.social.pendingRescue, at: now });
+    c.rescueTo = s.social.pendingRescue;
+    s.social.pendingRescue = null;
+    s.counters.rescuesGiven += 1;
+  }
   s.completions.push(c);
   return c;
 }
 
-function afterGain(s: State, before: { level: number; weekCounted: number }) {
+const SYNTH: Record<'Medium' | 'Hard', { effort: number; minutes: number; dread: number }> = {
+  Medium: { effort: 3, minutes: 20, dread: 3 },
+  Hard: { effort: 4, minutes: 45, dread: 4 },
+};
+
+/** Pay a Vault entry or bonus as if it were a Fortune task of that tier (inside every cap). */
+export function awardSynthetic(s: State, o: { id: string; title: string; tier: 'Medium' | 'Hard'; source: 'vault' | 'vaultBonus' }): Completion {
+  const t: Task = { id: o.id, type: 'habit', title: o.title, ...SYNTH[o.tier], stats: ['fortune'], createdDay: s.today, createdAt: 0, order: 0 };
+  return award(s, t, 'complete', { source: o.source });
+}
+
+/** Toast lines for a completion: loot, crits, surges, rescues. */
+export function completionEvents(s: State, c: Completion): string[] {
+  const out: string[] = [];
+  if (c.surge) out.push(`Arcane Surge! ${c.hit} damage.`);
+  else if (c.crit) out.push(`Critical hit! ${c.hit} damage.`);
+  if (c.drop) out.push(`Loot: ${dropText(s, c.drop)}.`);
+  if (c.rescueTo) out.push('Rescue sent. Their lantern burns brighter.');
+  return out;
+}
+
+export function afterGain(s: State, before: { level: number; weekCounted: number }) {
   const level = levelFromXp(s.xp);
   if (level > before.level) {
     for (let L = before.level + 1; L <= level; L++) {
-      const unlock = UNLOCKS.find((u) => u.level === L);
+      const unlocks = UNLOCKS.filter((u) => u.level === L);
       say(
         s,
         'levelup',
-        { level: L, unlock: unlock ? `${unlock.label} unlocked.` : nextSlotNote(L) },
+        { level: L, unlock: unlocks.length ? `${unlocks.map((u) => u.label).join(' and ')} unlocked.` : nextSlotNote(L) },
         [],
         { key: `level:${L}` },
       );
-      if (unlock && !s.wisp.seenUnlocks.includes(unlock.id)) {
+      for (const unlock of unlocks) {
+        if (s.wisp.seenUnlocks.includes(unlock.id)) continue;
         s.wisp.seenUnlocks.push(unlock.id);
+        onUnlock(s, unlock.id);
         const u = UNLOCK_TEXT[unlock.id];
         if (u) say(s, 'unlock', { id: unlock.id, label: u.label, detail: u.detail }, u.actions, { key: `unlock:${unlock.id}` });
       }
@@ -205,13 +283,27 @@ function afterGain(s: State, before: { level: number; weekCounted: number }) {
   }
 }
 
+/** One-time effects when a system opens. Mutates s. */
+export function onUnlock(s: State, id: string) {
+  if (id === 'boss' && !s.combat.startDay) s.combat.startDay = s.today;
+  if (id === 'bounties') ensureBounties(s, s.today);
+  if (id === 'pets' && !s.pets.length) {
+    // a starter egg and potion, so the first pet doesn't wait on luck
+    const r = rng(`${s.profile.deviceId}|starter`);
+    const sp = pick(r, SPECIES).id;
+    const po = pick(r, POTIONS).id;
+    s.bag.eggs[sp] = (s.bag.eggs[sp] ?? 0) + 1;
+    s.bag.potions[po] = (s.bag.potions[po] ?? 0) + 1;
+  }
+}
+
 function nextSlotNote(level: number): string {
   if (level % RULES.slots.perLevels === 0 && dailySlots(level) > dailySlots(level - 1))
     return `A new Daily slot opened (${dailySlots(level)} now).`;
   return '';
 }
 
-function snapshot(s: State) {
+export function snapshot(s: State) {
   return { level: levelFromXp(s.xp), weekCounted: s.week.selfCounted };
 }
 
@@ -224,7 +316,7 @@ export function completeTask(state: State, id: string): Result {
   const s = draft(state);
   const t = s.tasks.find((x) => x.id === id)!;
   const before = snapshot(s);
-  award(s, t, 'complete');
+  const c = award(s, t, 'complete');
   if (t.type === 'todo') t.doneDay = s.today;
   if (t.type === 'daily') {
     if (t.restDays?.includes(s.today)) t.restDays = t.restDays.filter((d) => d !== s.today);
@@ -232,7 +324,7 @@ export function completeTask(state: State, id: string): Result {
     if ([7, 30, 100, 365].includes(streak)) say(s, 'streak', { days: streak, task: t.title }, [], { key: `streak:${t.id}:${streak}` });
   }
   afterGain(s, before);
-  return { state: s };
+  return { state: s, events: completionEvents(s, c) };
 }
 
 export function tapHabit(state: State, id: string, sign: 1 | -1): Result {
@@ -242,8 +334,9 @@ export function tapHabit(state: State, id: string, sign: 1 | -1): Result {
   const t = s.tasks.find((x) => x.id === id)!;
   if (sign === 1) {
     const before = snapshot(s);
-    award(s, t, 'habitPlus');
+    const c = award(s, t, 'habitPlus');
     afterGain(s, before);
+    return { state: s, events: completionEvents(s, c) };
   } else {
     s.completions.push({
       id: uid(),
@@ -285,6 +378,19 @@ export function undoCompletion(state: State, completionId: string): Result {
   if (weekStart(c.day) === s.week.start) s.week.selfCounted = Math.max(0, s.week.selfCounted - c.counted);
   const t = s.tasks.find((x) => x.id === c.taskId);
   if (t?.type === 'todo') t.doneDay = null;
+  // Phase 2: take back loot, pet growth, Mana, a spent Surge and a sent Rescue
+  if (c.drop) removeDrop(s, c.drop);
+  if (c.petId && c.petXp) {
+    const pet = s.pets.find((x) => x.id === c.petId);
+    if (pet) pet.xp = Math.max(0, pet.xp - c.petXp);
+  }
+  if (c.manaGain) s.mana = Math.max(0, s.mana - c.manaGain);
+  if (c.surge) s.combat.surgeArmed = true;
+  if (c.rescueTo) {
+    s.social.rescues = s.social.rescues.filter((r) => !(r.to === c.rescueTo && r.at === c.ts));
+    s.social.pendingRescue = c.rescueTo;
+    s.counters.rescuesGiven = Math.max(0, s.counters.rescuesGiven - 1);
+  }
   s.lastLevel = levelFromXp(s.xp);
   return { state: s };
 }

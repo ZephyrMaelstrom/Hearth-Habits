@@ -8,6 +8,15 @@ import { completionFor, isScheduled, round2, scheduledDailies } from './state';
 import { STAT_LABEL, TRAIT_NAMES } from './progress';
 import { morningText, say } from './wisp';
 import { tierOfTask } from './pricing';
+import { UNLOCK_TEXT } from './unlocks';
+import { profile } from './combat';
+import { ensureBounties } from './bounties';
+import { vaultNewMonth } from './vault';
+import { deliverOwedChest } from './epics';
+import { checkBoss } from './boss';
+import { awardAchievements } from './achievements';
+import { levelFromXp } from './progress';
+import { P2, unlocked } from './rules';
 import { STATS, type DayKey, type DayLog, type DayMark, type State, type Stat } from './types';
 
 export function momentumTarget(share: number, neg: number): number {
@@ -60,7 +69,20 @@ export function closeDay(s: State, day: DayKey) {
   const neg = s.completions.filter((c) => c.day === day && c.kind === 'habitMinus').length;
   const share = counted ? done / counted : 1;
   if (!vacation) s.momentum = nextMomentum(s.momentum, share, neg);
-  s.days[day] = { ...log, scheduled: counted, done, neg, share: round2(share), vacation, closed: true, momentumEnd: s.momentum };
+  // Phase 2: to-dos a week or more overdue (Procrastinaut), perfect days, Mana
+  const oldTodos = s.tasks.filter(
+    (t) => t.type === 'todo' && !t.archived && (!t.doneDay || t.doneDay > day) && !!t.due && daysBetween(t.due, day) >= P2.boss.procrastOldDays,
+  ).length;
+  if (counted > 0 && done === counted) s.counters.perfectDays += 1;
+  if (s.cls) {
+    const p = profile(s);
+    const dayComps = s.completions.filter((c) => c.day === day && c.counted > 0);
+    let refill = P2.combat.manaRefill;
+    if (dayComps.some((c) => c.stats.includes('spirit'))) refill += P2.combat.manaSpiritBonus;
+    if (p.effects.wellspring && dayComps.some((c) => c.stats.includes('vigor'))) refill += p.effects.wellspring;
+    s.mana = Math.min(p.maxMana, s.mana + p.maxMana * refill);
+  }
+  s.days[day] = { ...log, scheduled: counted, done, neg, share: round2(share), vacation, closed: true, momentumEnd: s.momentum, oldTodos };
 }
 
 /**
@@ -86,9 +108,23 @@ export function rollover(state: State, now: Date = new Date()): State {
   s.days[today] = { ...(s.days[today] ?? blankLog(s, today)), opened: true, momentumStart: s.days[today]?.momentumStart ?? s.momentum };
 
   prune(s, today);
-  dailyWisp(s, today);
-  s.updatedAt = now.getTime();
-  return s;
+  // Phase 2 daily upkeep
+  const level = levelFromXp(s.xp);
+  if (!s.combat.startDay && level >= 3) s.combat.startDay = today;
+  if (weekStart(today) !== s.combat.week) {
+    s.combat.week = weekStart(today);
+    s.combat.casts = s.combat.casts.filter((c) => c.day >= addDays(s.combat.week, -7));
+  }
+  vaultNewMonth(s, today);
+  if (unlocked(level, 'bounties') && s.profile.onboarded) ensureBounties(s, today);
+  deliverOwedChest(s);
+  s.buffs = s.buffs.filter((b) => b.until > now.getTime() - 24 * 3600_000);
+  const settled = checkBoss(s);
+  const out = settled.state === s ? s : settled.state;
+  dailyWisp(out, today);
+  awardAchievements(out);
+  out.updatedAt = now.getTime();
+  return out;
 }
 
 function prune(s: State, today: DayKey) {
@@ -96,6 +132,8 @@ function prune(s: State, today: DayKey) {
   for (const k of Object.keys(s.days)) if (k < keepDays) delete s.days[k];
   const keepComp = addDays(today, -RULES.completionDays);
   s.completions = s.completions.filter((c) => c.day >= keepComp);
+  s.social.cheers = s.social.cheers.filter((c) => c.at > Date.now() - 14 * 864e5);
+  s.social.rescues = s.social.rescues.filter((c) => c.at > Date.now() - 14 * 864e5);
 }
 
 // ------------------------------------------------------------------ wisp checks
@@ -238,20 +276,4 @@ export function morningPlan(s: State, today: DayKey) {
   return { text: morningText(s.profile.tone, { weekday: wd, n: dailies.length, todos: todos.length, hist, load }), actions };
 }
 
-export const UNLOCK_TEXT: Record<string, { label: string; detail: string; actions: { label: string; action: import('./types').WispAction }[] }> = {
-  rewards: {
-    label: 'Rewards and the gold shop',
-    detail: 'Spend gold on real treats you price yourself, or on looks for your hero.',
-    actions: [{ label: 'Open Rewards', action: { type: 'openTab', tab: 'rewards' } }],
-  },
-  hero: {
-    label: 'your stat shape',
-    detail: 'Each stat grows from tasks in that part of life. Keep the shape balanced to earn Harmony, +10% XP.',
-    actions: [{ label: 'Open Hero', action: { type: 'openTab', tab: 'hero' } }],
-  },
-  class: {
-    label: 'class choice is close',
-    detail: 'Classes arrive in the next update. Your stats carry over.',
-    actions: [],
-  },
-};
+export { UNLOCK_TEXT } from './unlocks';

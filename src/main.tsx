@@ -5,10 +5,12 @@ import { App } from './ui/App';
 import { getState, onStateChange, replaceFromSync } from './store/store';
 import { initSync, pushLater } from './store/sync';
 import { captureInstallPrompt } from './store/install';
+import { initParty } from './store/party';
 
 captureInstallPrompt();
 onStateChange(pushLater);
 initSync(getState, replaceFromSync);
+initParty();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => undefined));

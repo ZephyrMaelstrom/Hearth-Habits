@@ -70,6 +70,24 @@ const T: Record<Exclude<WispKind, 'morning'>, Record<Tone, Tpl>> = {
     stoic: (v) => `The week's ${v.cap} XP is earned. Streaks and Momentum still count. XP returns Monday.`,
     gentle: (v) => `That's this week's ${v.cap} XP. Everything you do still counts for streaks and Momentum.`,
   },
+  boss: {
+    cheerful: (v) => (v.won ? `We beat the ${v.boss}! Your loot is in the bag.` : `The ${v.boss} got away with ${v.left}% of its HP left. A new boss arrives Monday.`),
+    dry: (v) => (v.won ? `${v.boss}: defeated. Loot: bagged.` : `${v.boss} escaped at ${v.left}% HP. There's always Monday.`),
+    stoic: (v) => (v.won ? `The ${v.boss} has fallen. Take your reward.` : `The ${v.boss} withdrew at ${v.left}% HP. Monday brings another.`),
+    gentle: (v) => (v.won ? `You did it: the ${v.boss} is beaten. There's loot waiting for you.` : `The ${v.boss} slipped away at ${v.left}% HP. Nothing lost; a new boss comes Monday.`),
+  },
+  achievement: {
+    cheerful: (v) => `Achievement: ${v.name} (${v.tier})!${v.title ? ` New title: ${v.title}.` : ''}`,
+    dry: (v) => `${v.tier} achievement: ${v.name}.${v.title ? ` Title unlocked: ${v.title}.` : ''}`,
+    stoic: (v) => `${v.name}. ${v.tier}.${v.title ? ` You may be called ${v.title}.` : ''}`,
+    gentle: (v) => `You earned ${v.name} (${v.tier}).${v.title ? ` A new title is yours: ${v.title}.` : ''}`,
+  },
+  party: {
+    cheerful: (v) => `${v.text}`,
+    dry: (v) => `${v.text}`,
+    stoic: (v) => `${v.text}`,
+    gentle: (v) => `${v.text}`,
+  },
   muted: {
     cheerful: (v) => `Got it, no more ${v.what} notes. You can turn them back on in Settings.`,
     dry: (v) => `Fine. No more ${v.what} notes. Settings has the undo.`,
@@ -117,6 +135,9 @@ export const KIND_LABEL: Record<WispKind, string> = {
   weekly: 'weekly review',
   cap: 'weekly cap',
   muted: 'mute',
+  boss: 'boss result',
+  achievement: 'achievement',
+  party: 'party',
 };
 
 const BUDGET = [0, 1, 2, 3, 4];
@@ -181,7 +202,7 @@ export function dismiss(s: State, id: string, rejected = true) {
   if (!m || m.dismissed) return;
   m.dismissed = true;
   m.read = true;
-  if (!rejected || m.kind === 'welcome' || m.kind === 'muted' || m.kind === 'levelup') return;
+  if (!rejected || m.kind === 'welcome' || m.kind === 'muted' || m.kind === 'levelup' || m.kind === 'boss') return;
   const n = (s.wisp.dismissals[m.kind] ?? 0) + 1;
   s.wisp.dismissals[m.kind] = n;
   if (n >= 3 && !s.wisp.muted.includes(m.kind)) {
