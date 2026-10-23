@@ -122,6 +122,52 @@ their own.
 3. Optional cleanup: delete the `phase-2` branch. The preview stops updating;
    the last preview build stays at `/preview/` until the next main deploy.
 
+## 5. Phase 3: Ember's AI, reminders and Gate 3 numbers
+
+Phase 3 is on the `phase-3` branch and published as the preview at
+<https://zephyrmaelstrom.github.io/Hearth-Habits/preview/>. The hourly Ember
+job (Actions tab → **Ember**) does the server work. It needs three repository
+secrets: **Settings → Secrets and variables → Actions → New repository secret**.
+
+| Secret | What it does | Where to get it |
+| --- | --- | --- |
+| `FIREBASE_SERVICE_ACCOUNT` | Lets the job read saves and write Ember's notes | Firebase console → **Project settings → Service accounts → Generate new private key**. Paste the whole JSON file's contents. |
+| `ANTHROPIC_API_KEY` | AI morning plans and weekly reviews | <https://console.anthropic.com> → **API keys**. Add a few dollars of credit; a player costs about $0.04 a month. |
+| `VAPID_PRIVATE_KEY` | Push reminders | The private key that matches `src/push-config.ts` (sent to you with these notes). To make a new pair: `cd server && npx web-push generate-vapid-keys`, then put the public key in `src/push-config.ts`. |
+
+Any secret can be left out: no `ANTHROPIC_API_KEY` means template plans only,
+and no `VAPID_PRIVATE_KEY` means no pushes. Each run's summary says what's
+missing.
+
+**Publish the latest rules.** Paste [`firestore.rules`](../firestore.rules)
+into **Firestore Database → Rules** and click **Publish**. Phase 3 makes
+Ember's notes read-only for players, adds feedback and adds the public
+`content/` folder.
+
+**Test it in two minutes.**
+1. In the preview, sign in, turn on **Settings → Ember's AI**, and turn on
+   **Push notifications** (on iPhone, from the Home Screen app).
+2. **Actions → Ember → Run workflow**. Set **force_hour** to your morning plan
+   hour (for example 8) and leave **dry_run** off.
+3. Within a minute, a push arrives and the morning plan on Today switches to
+   the AI version, labelled "Written with AI". The run's summary shows counts
+   and the Gate 3 table.
+
+**Tune without a release (optional).** In Firestore, create the collection
+`content`, document `tuning`, with number fields `bossHp` and `dropRate` (1 is
+normal, 0.5 to 2 allowed) and the boolean `aiEnabled` (set it to `false` to stop
+all AI calls at once).
+
+**Read Gate 3.** Every day at noon UTC, and on every manual run, the Ember job
+writes `ops/metrics` and adds a Gate 3 table to the run's summary: day-7
+retention (target 30%), day-30 (15%), scheduled Dailies finished (70%) and AI
+cost per active player (under $0.10). Feedback from testers is in the
+`feedback` collection.
+
+**Ship Phase 3.** Merge `phase-3` into `main` with a pull request, as you did
+with Phase 2. Saves upgrade on their own. Once nothing is left unmerged, the
+Ember job runs from `main`.
+
 ## Running it on your own computer
 
 You need Node 20 or newer.

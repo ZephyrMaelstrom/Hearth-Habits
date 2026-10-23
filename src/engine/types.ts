@@ -264,6 +264,48 @@ export interface MemberSummary {
   updatedAt: number;
 }
 
+// ------------------------------------------------------------------ Phase 3
+
+export interface AiSettings {
+  /** Opt-in: Ember's morning plan and weekly review are written by Claude. */
+  enabled: boolean;
+  consentDay: DayKey | null;
+}
+
+/** What Ember knows about you. You can read, edit or wipe it any time. */
+export interface Memory {
+  goals: string;
+  helps: string;
+  notes: string;
+}
+
+export interface Reminders {
+  /** Local hour the morning plan is ready (and pushed, if push is on). */
+  morningHour: number;
+  evening: boolean;
+  eveningHour: number;
+  /** No pushes from quietStart to quietEnd (local hours). */
+  quietStart: number;
+  quietEnd: number;
+  push: boolean;
+}
+
+export interface AiSuggestion {
+  type: 'moveTodo' | 'rest' | 'roughDay';
+  taskId?: string;
+}
+
+/** What the hourly Ember job wrote for you, as received. */
+export interface AiInbox {
+  morning: { day: DayKey; text: string; suggestion: AiSuggestion | null; at: number } | null;
+  weekly: { week: DayKey; text: string; at: number } | null;
+}
+
+export interface Tuning {
+  bossHp: number;
+  dropRate: number;
+}
+
 export interface PartyInfo {
   code: string;
   name: string;
@@ -332,6 +374,7 @@ export type WispAction =
   | { type: 'graduate'; taskId: string }
   | { type: 'moveTodo'; taskId: string }
   | { type: 'openTab'; tab: string }
+  | { type: 'restTask'; taskId: string }
   | { type: 'dismiss' };
 
 export interface WispMessage {
@@ -345,6 +388,8 @@ export interface WispMessage {
   dismissed: boolean;
   /** Messages the player asked for (settings, opt-in morning plan) don't use the daily budget. */
   prompted: boolean;
+  /** Written by Claude (Phase 3) rather than a template. */
+  ai?: boolean;
 }
 
 export interface Counters {
@@ -370,6 +415,14 @@ export interface State {
     onboarded: boolean;
     createdDay: DayKey;
     deviceId: string;
+    // ---- Phase 3
+    /** IANA time zone, so the hourly Ember job knows your local time. */
+    tz?: string;
+    /** Life areas picked at onboarding. */
+    focus?: Stat[];
+    ai?: AiSettings;
+    memory?: Memory;
+    reminders?: Reminders;
   };
   xp: number;
   gold: number;
@@ -438,4 +491,8 @@ export interface State {
     seen: string[];
     received: { day: DayKey; cheers: number };
   };
+
+  // ---- Phase 3
+  ai: AiInbox;
+  firstSteps: { done: string[]; dismissed: boolean };
 }

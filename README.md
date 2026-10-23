@@ -5,10 +5,17 @@ your hero levels up, and a balancing engine keeps the rewards fair, so a hard,
 dreaded task pays more than an easy one and spamming taps can't buy levels.
 
 **Play it:** <https://zephyrmaelstrom.github.io/Hearth-Habits/>
-**Phase 2 preview:** <https://zephyrmaelstrom.github.io/Hearth-Habits/preview/> (separate save)
+**Preview (next phase):** <https://zephyrmaelstrom.github.io/Hearth-Habits/preview/> (separate save)
 Install it from the browser to your home screen; it works offline.
 
-## What's in Phase 2 (the game layer, on the `phase-2` branch)
+## What's in Phase 3 (the closed beta, on the `phase-3` branch)
+
+Ember's AI morning plan and weekly review (opt-in, Claude Haiku 5.5),
+push reminders with quiet hours, a warmer onboarding with first steps, in-app
+feedback, remote tuning, and an hourly job on GitHub Actions (`server/`) that
+also measures Gate 3. See [docs/PHASE3_NOTES.md](docs/PHASE3_NOTES.md).
+
+## What's in Phase 2 (the game layer)
 
 Classes and skill trees, nine-slot gear (drops only), pets, a weekly boss in
 three rotations, parties with Cheers and Rescues, daily bounties, the Vault
@@ -63,4 +70,5 @@ npm test
 | `src/engine` | Game rules with no UI: pricing, levels, Momentum, day rollover, actions, Ember's messages, tester metrics. `rules.ts` holds every tuning number (`RULES` from Phase 0, `P2` for Phase 2). Phase 2 adds `combat.ts`, `boss.ts` (the shared fight resolver), `loot.ts`, `game.ts`, `bounties.ts`, `vault.ts`, `epics.ts`, `social.ts`, `achievements.ts` and `content/`. |
 | `src/store` | Saved state (localStorage), Firebase sync, party sync, install prompt. |
 | `src/ui` | React screens: Today, Hero, Rewards, Settings, onboarding, task editor, Ember's panel. |
+| `server` | The hourly Ember job: AI plans and reviews, push reminders, Gate 3 metrics. `lib/` is plain logic shared with the tests; `hourly.ts` talks to Firebase, Claude and web push. |
 | `tests` | Engine tests that re-check the Phase 0 balancing numbers, Phase 2 tests (with a boss-week simulator in `sim.ts`), plus a full play-through of the app. |

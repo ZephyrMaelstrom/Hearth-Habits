@@ -1,7 +1,7 @@
 import { dayKey, weekStart, monthKey, weekday } from './dates';
 import { RULES } from './rules';
 import { levelFromXp } from './progress';
-import { STATS, type Counters, type DayKey, type State, type Stat, type Task } from './types';
+import { STATS, type Counters, type DayKey, type Reminders, type State, type Stat, type Task } from './types';
 
 export function uid(): string {
   const c = globalThis.crypto as Crypto | undefined;
@@ -25,6 +25,11 @@ export function newState(now: Date = new Date()): State {
       onboarded: false,
       createdDay: today,
       deviceId: uid(),
+      tz: localTz(),
+      focus: [],
+      ai: { enabled: false, consentDay: null },
+      memory: { goals: '', helps: '', notes: '' },
+      reminders: defaultReminders(),
     },
     xp: 0,
     gold: 0,
@@ -84,7 +89,21 @@ export function phase2Defaults(today: DayKey) {
     party: null,
     partyView: null,
     social: { cheers: [], rescues: [], pendingRescue: null, seen: [], received: { day: '', cheers: 0 } },
+    ai: { morning: null, weekly: null },
+    firstSteps: { done: [], dismissed: false },
   } satisfies Partial<State>;
+}
+
+export function defaultReminders(): Reminders {
+  return { morningHour: 8, evening: false, eveningHour: 20, quietStart: 22, quietEnd: 7, push: false };
+}
+
+export function localTz(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Chicago';
+  } catch {
+    return 'America/Chicago';
+  }
 }
 
 export function emptyCounters(): Counters {
@@ -114,7 +133,13 @@ export function migrate(raw: unknown, now: Date = new Date()): State {
     epicChest: s.epicChest ?? base.epicChest,
     combat: { ...base.combat, ...(s.combat ?? {}) },
     social: { ...base.social, ...(s.social ?? {}) },
+    ai: { ...base.ai, ...(s.ai ?? {}) },
+    firstSteps: s.firstSteps ?? { done: [], dismissed: levelFromXp(Number(s.xp ?? 0)) >= 3 },
   } as State;
+  out.profile.ai = { ...base.profile.ai!, ...(s.profile?.ai ?? {}) };
+  out.profile.memory = { ...base.profile.memory!, ...(s.profile?.memory ?? {}) };
+  out.profile.reminders = { ...base.profile.reminders!, ...(s.profile?.reminders ?? {}) };
+  out.profile.focus = s.profile?.focus ?? [];
   // A Phase 1 save that is already past level 3 starts its first boss week now.
   if (!out.combat.startDay && levelFromXp(out.xp) >= 3) out.combat.startDay = out.today;
   return out;

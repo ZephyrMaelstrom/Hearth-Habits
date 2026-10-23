@@ -5,6 +5,7 @@
 import { daysBetween } from '../dates';
 import { P2 } from '../rules';
 import type { BossId, DayKey } from '../types';
+import { tuning } from '../tuning';
 
 export interface BossDef {
   id: BossId;
@@ -55,5 +56,5 @@ export function bossForWeek(week: DayKey): BossId {
 /** Boss HP contributed by one active member, scaled by level. */
 export function memberBossHp(level: number): number {
   const b = P2.boss;
-  return Math.round(b.hpBase * (1 + b.hpPerLevel * (Math.min(level, b.hpLevelCap) - 1)));
+  return Math.round(b.hpBase * (1 + b.hpPerLevel * (Math.min(level, b.hpLevelCap) - 1)) * tuning().bossHp);
 }

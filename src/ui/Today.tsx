@@ -11,6 +11,7 @@ import { act, useGame } from '../store/store';
 import { Bar, Icon } from './components';
 import { scheduleText } from './TaskEditor';
 import { BossMini, Bounties } from './TodayQuest';
+import { FirstSteps } from './FirstSteps';
 
 interface Props {
   openQuest: () => void;
@@ -97,6 +98,7 @@ export function Today({ openEditor, openWisp, onWispAction, toast, openQuest }: 
           <div className="mini-orb" aria-hidden="true" />
           <div className="stack grow">
             <p>{morning.text}</p>
+            {morning.ai && <span className="tiny muted">Written with AI</span>}
             <div className="row" style={{ flexWrap: 'wrap' }}>
               {morning.actions.map((a, i) => (
                 <button key={i} type="button" className="btn small primary" onClick={() => onWispAction(morning, i)}>
@@ -111,6 +113,7 @@ export function Today({ openEditor, openWisp, onWispAction, toast, openQuest }: 
         </div>
       )}
 
+      <FirstSteps s={s} />
       <BossMini s={s} open={openQuest} />
       <Bounties s={s} toast={toast} />
 

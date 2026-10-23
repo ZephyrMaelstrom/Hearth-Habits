@@ -1,12 +1,12 @@
 name: Preview
 
-# Pushes to phase-2 run the tests and a preview build, then ask the main
+# Pushes to a phase-N branch run the tests and a preview build, then ask the main
 # deploy workflow to republish the site with this branch at /preview/.
 # The main app at the site root is rebuilt from main, unchanged.
 
 on:
   push:
-    branches: [phase-2]
+    branches: ['phase-*']
 
 permissions:
   contents: read

@@ -13,3 +13,6 @@ export const STORAGE_KEY = IS_PREVIEW ? 'hearth-habits:preview:state' : MAIN_STO
 
 /** Cloud save document under users/{uid}/state/. */
 export const CLOUD_DOC = IS_PREVIEW ? 'preview' : 'main';
+
+/** Shown in Settings and on the preview ribbon. */
+export const BUILD_LABEL = IS_PREVIEW ? 'Preview build' : 'Phase 3';

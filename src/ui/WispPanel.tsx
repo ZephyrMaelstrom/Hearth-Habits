@@ -19,6 +19,7 @@ export function WispPanel({ onClose, onAction }: { onClose: () => void; onAction
           <div className="mini-orb" aria-hidden="true" />
           <div className="stack grow">
             <p>{m.text}</p>
+            {m.ai && <span className="tiny muted">Written with AI</span>}
             <div className="row" style={{ flexWrap: 'wrap' }}>
               {m.actions.map((a, i) => (
                 <button key={i} type="button" className={`btn small ${a.action.type === 'dismiss' ? 'ghost' : 'primary'}`} onClick={() => onAction(m, i)}>
@@ -34,7 +35,7 @@ export function WispPanel({ onClose, onAction }: { onClose: () => void; onAction
           </div>
         </div>
       ))}
-      <p className="tiny muted">Talking back to Ember arrives in a later update. Change how often she speaks in Settings.</p>
+      <p className="tiny muted">Change how often Ember speaks, and whether AI writes her morning plan and weekly review, in Settings. Talking back to her arrives in a later update.</p>
     </Sheet>
   );
 }

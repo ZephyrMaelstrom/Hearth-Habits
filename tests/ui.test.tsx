@@ -10,6 +10,9 @@ describe('playing through the app', () => {
     // step 1: name and tone
     fireEvent.change(screen.getByLabelText('What should Ember call you?'), { target: { value: 'Sam' } });
     fireEvent.click(screen.getByRole('button', { name: /Dry/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Next$/ }));
+    // step 2: life areas and the morning plan time (defaults are fine)
+    expect(screen.getByRole('heading', { name: /What matters most/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Next: pick your first tasks/ }));
 
     // step 2: suggested picks are pre-selected (6 Dailies fill the 6 slots)

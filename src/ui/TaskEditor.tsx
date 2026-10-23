@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import * as A from '../engine/actions';
+import { markStep } from '../engine/companion';
 import { LIBRARY, type LibraryTask } from '../engine/library';
 import { tierFor } from '../engine/pricing';
 import { STAT_LABEL } from '../engine/progress';
@@ -74,6 +75,7 @@ export function TaskEditor({ taskId, onClose, toast }: { taskId?: string; onClos
       lifeSkill: libraryId ? LIBRARY.find((l) => l.id === libraryId)?.skill ?? undefined : undefined,
     };
     const err = existing ? act((st) => A.updateTask(st, existing.id, d)) : act((st) => A.addTask(st, d));
+    if (!err && !existing) act((st) => markStep(st, 'own'));
     if (err) return setError(err);
     toast(existing ? 'Saved.' : `Added "${title.trim()}".`);
     onClose();

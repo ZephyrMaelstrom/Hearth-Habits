@@ -7,6 +7,7 @@ import { statLevels, levelFromXp } from './progress';
 import { P2 } from './rules';
 import { pick, rng, weighted } from './rng';
 import { uid } from './state';
+import { tuning } from './tuning';
 import type { DayKey, Drop, Item, ItemSlot, Rarity, State, TierName } from './types';
 
 function makeItem(s: State, r: () => number, rarity: Rarity, source: string, slot?: ItemSlot): Item {
@@ -71,7 +72,7 @@ function rollKind(s: State, r: () => number, rarityKind: 'task' | 'bounty' | 'bo
 /** Roll a task's loot. Returns null most of the time. Mutates s when something drops. */
 export function rollTaskDrop(s: State, seed: string, tier: TierName): Drop | null {
   const r = rng(`${seed}|drop`);
-  if (r() >= P2.dropChance[tier]) return null;
+  if (r() >= P2.dropChance[tier] * tuning().dropRate) return null;
   const { drop, item } = rollKind(s, r, 'task', P2.dropKinds, 'task');
   return grantDrop(s, drop, item);
 }

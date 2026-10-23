@@ -8,7 +8,8 @@ import { KIND_LABEL } from '../engine/wisp';
 import { canInstall, isStandalone, onInstallChange, promptInstall } from '../store/install';
 import { act, replaceFromImport, resetAll, useGame } from '../store/store';
 import { retrySync, signIn, signOut, syncConfigured, syncInfo, useSync } from '../store/sync';
-import { IS_PREVIEW, MAIN_STORAGE_KEY } from '../channel';
+import { BUILD_LABEL, IS_PREVIEW, MAIN_STORAGE_KEY } from '../channel';
+import { EmberAiCard, FeedbackCard, RemindersCard } from './SettingsCompanion';
 
 export const TONES: { id: Tone; label: string; sample: string }[] = [
   { id: 'cheerful', label: 'Cheerful', sample: '"30 days of walks in a row. That\'s how habits stick!"' },
@@ -88,6 +89,9 @@ export function Settings({ toast }: { toast: (m: string) => void }) {
         )}
       </section>
 
+      <EmberAiCard toast={toast} />
+      <RemindersCard toast={toast} />
+
       <section className="card stack" aria-labelledby="vac-h">
         <h2 id="vac-h">Vacation mode</h2>
         <p className="small muted">Freezes Momentum and streaks for up to {RULES.vacationMaxDays} days. Rough days left this month: {RULES.rough.perMonth - s.rough.used}.</p>
@@ -110,6 +114,8 @@ export function Settings({ toast }: { toast: (m: string) => void }) {
 
       <SyncCard toast={toast} />
       <InstallCard />
+
+      <FeedbackCard toast={toast} />
 
       <section className="card stack" aria-labelledby="test-h">
         <h2 id="test-h">Tester report (Gate 1)</h2>
@@ -198,7 +204,7 @@ export function Settings({ toast }: { toast: (m: string) => void }) {
       </section>
 
       <p className="tiny muted" style={{ textAlign: 'center' }}>
-        Hearth &amp; Habits · {IS_PREVIEW ? 'Phase 2 preview' : 'Phase 2'} · rules from Phase 0 (weekly cap {RULES.weekCap.toLocaleString('en-US')}, Spark +{RULES.spark})
+        Hearth &amp; Habits · {BUILD_LABEL} · rules from Phase 0 (weekly cap {RULES.weekCap.toLocaleString('en-US')}, Spark +{RULES.spark})
       </p>
     </main>
   );
@@ -272,7 +278,7 @@ function PreviewCard({ toast }: { toast: (m: string) => void }) {
   };
   return (
     <section className="card warm stack" aria-labelledby="prev-h">
-      <h2 id="prev-h">Phase 2 preview</h2>
+      <h2 id="prev-h">Preview build</h2>
       <p className="small">This is a test build. It keeps its own save on this device and its own cloud copy, so nothing here touches your main game or the Gate 1 tester report.</p>
       <button type="button" className="btn small" onClick={copyMain}>
         Copy my main game into the preview

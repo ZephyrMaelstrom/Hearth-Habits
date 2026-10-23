@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as A from '../engine/actions';
+import { markStep } from '../engine/companion';
 import type { WispMessage } from '../engine/types';
 import { act, onEvents, tick, useGame } from '../store/store';
 import { IS_PREVIEW } from '../channel';
@@ -81,6 +82,7 @@ export function App() {
     } else if (t === 'hero') {
       setTab('hero');
       if (sub) setHeroView(sub as HeroView);
+      act((st) => markStep(st, 'hero'));
     } else if (t === 'treasury') {
       setTab('treasury');
       if (sub) setTreasuryView(sub as TreasuryView);
@@ -101,6 +103,10 @@ export function App() {
         case 'graduate':
           err = act((st) => A.acceptGraduation(st, a.taskId));
           if (!err) toast('Graduated! A new Trait is on your Hero sheet.');
+          break;
+        case 'restTask':
+          err = act((st) => A.restToday(st, a.taskId));
+          if (!err) toast('Planned rest today. It won’t count against Momentum.');
           break;
         case 'moveTodo':
           err = act((st) => A.moveTodoToTomorrow(st, a.taskId));
@@ -128,9 +134,9 @@ export function App() {
 
   return (
     <div className="app">
-      {IS_PREVIEW && <div className="preview-ribbon">Phase 2 preview · separate save from the main app</div>}
+      {IS_PREVIEW && <div className="preview-ribbon">Preview build · separate save from the main app</div>}
       {tab === 'today' && (
-        <Today openEditor={(id) => setEditor({ id })} openWisp={() => setWispOpen(true)} onWispAction={onWispAction} toast={toast} openQuest={() => openTab('quest')} />
+        <Today openEditor={(id) => setEditor({ id })} openWisp={() => (setWispOpen(true), act((st) => markStep(st, 'ember')))} onWispAction={onWispAction} toast={toast} openQuest={() => openTab('quest')} />
       )}
       {tab === 'quest' && <Quest toast={toast} goSettings={() => openTab('settings')} />}
       {tab === 'hero' && <Hero view={heroView} setView={setHeroView} toast={toast} />}

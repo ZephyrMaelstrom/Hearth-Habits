@@ -7,10 +7,25 @@ import { rollover } from '../engine/rollover';
 import { migrate, newState } from '../engine/state';
 import { checkBoss } from '../engine/boss';
 import { checkAchievements } from '../engine/achievements';
+import { markStepIn, setTimeZone } from '../engine/companion';
+import { localTz } from '../engine/state';
+import { setTuning } from '../engine/tuning';
 import type { State } from '../engine/types';
 import { STORAGE_KEY } from '../channel';
 
 const KEY = STORAGE_KEY;
+const TUNING_KEY = 'hearth-habits:tuning';
+
+/** Apply the developer's remote tuning (content/tuning) and remember it for offline starts. */
+export function applyTuning(t: unknown) {
+  setTuning(t as Record<string, unknown>);
+  try {
+    globalThis.localStorage?.setItem(TUNING_KEY, JSON.stringify(t ?? {}));
+  } catch {
+    /* fine */
+  }
+  listeners.forEach((l) => l());
+}
 type Listener = () => void;
 
 const listeners = new Set<Listener>();
@@ -20,9 +35,15 @@ let state: State = load();
 
 function load(): State {
   try {
+    const tuned = globalThis.localStorage?.getItem(TUNING_KEY);
+    if (tuned) setTuning(JSON.parse(tuned));
+  } catch {
+    /* ignore a bad cached tuning */
+  }
+  try {
     const raw = globalThis.localStorage?.getItem(KEY);
     const s = raw ? migrate(JSON.parse(raw)) : newState();
-    return post(rollover(s, new Date())).state;
+    return post(setTimeZone(rollover(s, new Date()), localTz())).state;
   } catch {
     return newState();
   }
@@ -33,7 +54,13 @@ function post(s: State): { state: State; events: string[] } {
   if (!s.profile.onboarded) return { state: s, events: [] };
   const b = checkBoss(s);
   const a = checkAchievements(b.state);
-  return { state: a.state, events: [...b.events, ...a.earned.map((n) => `Achievement unlocked: ${n}`)] };
+  let out = a.state;
+  const events = [...b.events, ...a.earned.map((n) => `Achievement unlocked: ${n}`)];
+  if (!out.firstSteps.dismissed && !out.firstSteps.done.includes('task') && out.completions.some((c) => c.counted > 0 && !c.source)) {
+    out = structuredClone(out);
+    events.push(...markStepIn(out, 'task'));
+  }
+  return { state: out, events };
 }
 
 function emitEvents(lines: string[]) {

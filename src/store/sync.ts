@@ -11,6 +11,8 @@ import { firebaseConfig } from '../firebase-config';
 import { testerReport } from '../engine/metrics';
 import type { State } from '../engine/types';
 import { CLOUD_DOC, IS_PREVIEW } from '../channel';
+import { ingestAi } from '../engine/companion';
+import { act, applyTuning } from './store';
 
 export type SyncStatus = 'off' | 'loading' | 'signed-out' | 'syncing' | 'synced' | 'error';
 
@@ -74,6 +76,11 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
     const auth = authMod.getAuth(app);
     const db = fsMod.getFirestore(app);
     fb = { auth, db, authMod, fsMod };
+    // remote tuning is public; read it whether or not anyone signs in
+    fsMod
+      .getDoc(fsMod.doc(db, 'content', 'tuning'))
+      .then((snap: { exists: () => boolean; data: () => unknown }) => snap.exists() && applyTuning(snap.data()))
+      .catch(() => undefined);
     await authMod.getRedirectResult(auth).catch(fail);
     connect = async () => {
       const user = auth.currentUser as { uid: string } | null;
@@ -92,6 +99,15 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
         } else {
           await write(local);
         }
+        unlistenAi?.();
+        unlistenAi = fsMod.onSnapshot(
+          fsMod.doc(db, 'users', user.uid, 'ai', CLOUD_DOC),
+          (snap: { data: () => unknown }) => {
+            const data = snap.data();
+            if (data) act((st) => ({ state: ingestAi(st, data as Parameters<typeof ingestAi>[1]) }));
+          },
+          () => undefined,
+        );
         unlisten?.();
         unlisten = fsMod.onSnapshot(ref, (snap) => {
           const raw = snap.data()?.data;
@@ -112,6 +128,8 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
       if (!user) {
         unlisten?.();
         unlisten = null;
+        unlistenAi?.();
+        unlistenAi = null;
         // keep a failed redirect sign-in's message on screen
         return setStatus(lastError ? 'error' : 'signed-out');
       }
@@ -124,6 +142,7 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
 
 let connect: (() => Promise<void>) | null = null;
 let unlisten: (() => void) | null = null;
+let unlistenAi: (() => void) | null = null;
 
 /** Tries the cloud save again for the signed-in player (after fixing a setup problem). */
 export async function retrySync() {

@@ -1,0 +1,18 @@
+{
+  "name": "hearth-habits-ember",
+  "private": true,
+  "type": "module",
+  "description": "The hourly Ember job: AI morning plans, weekly reviews, push reminders and Gate 3 metrics. Run by .github/workflows/ember.yml.",
+  "scripts": {
+    "hourly": "tsx hourly.ts",
+    "vapid": "web-push generate-vapid-keys --json"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "^3.6.4",
+    "tsx": "^4.23.15"
+  }
+}
