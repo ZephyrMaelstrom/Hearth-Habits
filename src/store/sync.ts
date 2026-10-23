@@ -94,8 +94,25 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
 }
 
 function fail(e: unknown) {
-  lastError = e instanceof Error ? e.message : String(e);
+  lastError = friendlyError(e);
   setStatus('error');
+}
+
+/** Turns the setup mistakes testers are likely to hit into plain instructions. */
+export function friendlyError(e: unknown): string {
+  const code = String((e as { code?: string })?.code ?? '');
+  const msg = e instanceof Error ? e.message : String(e);
+  if (code.includes('unauthorized-domain'))
+    return `This site isn't on Firebase's list of allowed sites. In the Firebase console, open Authentication → Settings → Authorized domains and add ${location.hostname}.`;
+  if (code.includes('operation-not-allowed'))
+    return 'Google sign-in is turned off. In the Firebase console, open Authentication → Sign-in method and enable Google.';
+  if (code.includes('permission-denied') || /insufficient permissions/i.test(msg))
+    return "Firestore's rules are blocking saves. Paste the rules from firestore.rules into Firestore Database → Rules and publish.";
+  if (/database .*does not exist|not-found/i.test(code + ' ' + msg))
+    return "The Firestore database hasn't been created. In the Firebase console, open Firestore Database → Create database.";
+  if (code.includes('network-request-failed') || code.includes('unavailable'))
+    return "Couldn't reach Firebase. Check the connection; your game is still saved on this device.";
+  return msg;
 }
 
 async function write(s: State) {
@@ -145,7 +162,10 @@ export async function signIn() {
     await authMod.signInWithPopup(auth, provider);
   } catch (e: unknown) {
     const code = (e as { code?: string }).code ?? '';
-    if (code.includes('popup')) await authMod.signInWithRedirect(auth, provider);
+    // closing the popup is a choice, not an error
+    if (code.includes('popup-closed-by-user') || code.includes('cancelled-popup-request')) return;
+    // blocked popups (common in installed apps) fall back to a full-page redirect
+    if (code.includes('popup-blocked') || code.includes('operation-not-supported')) await authMod.signInWithRedirect(auth, provider);
     else fail(e);
   }
 }

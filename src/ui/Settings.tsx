@@ -220,7 +220,7 @@ function SyncCard({ toast }: { toast: (m: string) => void }) {
       <h2 id="sync-h">Sync across devices</h2>
       {!syncConfigured && <p className="small muted">Sync isn't set up for this build yet. Your game is saved on this device; Export makes a backup.</p>}
       {syncConfigured && status === 'loading' && <p className="small muted">Connecting…</p>}
-      {syncConfigured && status === 'signed-out' && (
+      {syncConfigured && (status === 'signed-out' || (status === 'error' && !userLabel)) && (
         <>
           <p className="small muted">Sign in to keep your game on every device and in the tester report.</p>
           <button type="button" className="btn primary" onClick={() => signIn().catch(() => toast('Sign-in failed.'))}>
