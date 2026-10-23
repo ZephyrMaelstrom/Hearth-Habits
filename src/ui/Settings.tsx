@@ -7,7 +7,7 @@ import type { State, Tone } from '../engine/types';
 import { KIND_LABEL } from '../engine/wisp';
 import { canInstall, isStandalone, onInstallChange, promptInstall } from '../store/install';
 import { act, replaceFromImport, resetAll, useGame } from '../store/store';
-import { signIn, signOut, syncConfigured, syncInfo, useSync } from '../store/sync';
+import { retrySync, signIn, signOut, syncConfigured, syncInfo, useSync } from '../store/sync';
 
 export const TONES: { id: Tone; label: string; sample: string }[] = [
   { id: 'cheerful', label: 'Cheerful', sample: '"30 days of walks in a row. That\'s how habits stick!"' },
@@ -239,6 +239,19 @@ function SyncCard({ toast }: { toast: (m: string) => void }) {
         </div>
       )}
       {status === 'error' && <p className="small" style={{ color: 'var(--danger)' }}>Sync error: {lastError}</p>}
+      {syncConfigured && status === 'error' && userLabel && (
+        <div className="between">
+          <span className="small muted">Signed in as {userLabel}</span>
+          <div className="row">
+            <button type="button" className="btn small" onClick={() => retrySync()}>
+              Try again
+            </button>
+            <button type="button" className="btn small ghost" onClick={() => signOut()}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

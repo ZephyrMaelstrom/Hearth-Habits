@@ -58,11 +58,10 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
     const auth = authMod.getAuth(app);
     const db = fsMod.getFirestore(app);
     fb = { auth, db, authMod, fsMod };
-    await authMod.getRedirectResult(auth).catch(() => undefined);
-    authMod.onAuthStateChanged(auth, async (user: { uid: string; email: string | null; displayName: string | null } | null) => {
-      uid = user?.uid ?? null;
-      userLabel = user?.email ?? user?.displayName ?? '';
-      if (!user) return setStatus('signed-out');
+    await authMod.getRedirectResult(auth).catch(fail);
+    connect = async () => {
+      const user = auth.currentUser as { uid: string } | null;
+      if (!user) return;
       setStatus('syncing');
       const ref = fsMod.doc(db, 'users', user.uid, 'state', 'main');
       try {
@@ -77,20 +76,42 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
         } else {
           await write(local);
         }
-        fsMod.onSnapshot(ref, (snap) => {
+        unlisten?.();
+        unlisten = fsMod.onSnapshot(ref, (snap) => {
           const raw = snap.data()?.data;
           if (!snap.exists() || snap.metadata.hasPendingWrites || typeof raw !== 'string') return;
           const remote = JSON.parse(raw) as State;
           if ((remote.updatedAt ?? 0) > (getLocal().updatedAt ?? 0)) onRemote(remote);
         });
+        lastError = '';
         setStatus('synced');
       } catch (e) {
         fail(e);
       }
+    };
+    authMod.onAuthStateChanged(auth, async (user: { uid: string; email: string | null; displayName: string | null } | null) => {
+      uid = user?.uid ?? null;
+      userLabel = user?.email ?? user?.displayName ?? '';
+      if (!user) {
+        unlisten?.();
+        unlisten = null;
+        // keep a failed redirect sign-in's message on screen
+        return setStatus(lastError ? 'error' : 'signed-out');
+      }
+      await connect?.();
     });
   } catch (e) {
     fail(e);
   }
+}
+
+let connect: (() => Promise<void>) | null = null;
+let unlisten: (() => void) | null = null;
+
+/** Tries the cloud save again for the signed-in player (after fixing a setup problem). */
+export async function retrySync() {
+  lastError = '';
+  await connect?.();
 }
 
 function fail(e: unknown) {
@@ -98,20 +119,24 @@ function fail(e: unknown) {
   setStatus('error');
 }
 
-/** Turns the setup mistakes testers are likely to hit into plain instructions. */
+/**
+ * Turns the setup mistakes testers are likely to hit into plain instructions.
+ * The raw Firebase code is kept on the end so a problem can be pinned down exactly.
+ */
 export function friendlyError(e: unknown): string {
   const code = String((e as { code?: string })?.code ?? '');
   const msg = e instanceof Error ? e.message : String(e);
-  if (code.includes('unauthorized-domain'))
-    return `This site isn't on Firebase's list of allowed sites. In the Firebase console, open Authentication → Settings → Authorized domains and add ${location.hostname}.`;
-  if (code.includes('operation-not-allowed'))
-    return 'Google sign-in is turned off. In the Firebase console, open Authentication → Sign-in method and enable Google.';
-  if (code.includes('permission-denied') || /insufficient permissions/i.test(msg))
-    return "Firestore's rules are blocking saves. Paste the rules from firestore.rules into Firestore Database → Rules and publish.";
-  if (/database .*does not exist|not-found/i.test(code + ' ' + msg))
-    return "The Firestore database hasn't been created. In the Firebase console, open Firestore Database → Create database.";
-  if (code.includes('network-request-failed') || code.includes('unavailable'))
-    return "Couldn't reach Firebase. Check the connection; your game is still saved on this device.";
+  const tag = code ? ` [${code}]` : '';
+  if (code === 'auth/unauthorized-domain')
+    return `This site isn't on Firebase's list of allowed sites. In the Firebase console, open Authentication → Settings → Authorized domains and add ${location.hostname}.${tag}`;
+  if (code === 'auth/operation-not-allowed' || code === 'auth/configuration-not-found')
+    return `Google sign-in isn't switched on. In the Firebase console, open Authentication (click Get started if you see it) → Sign-in method → Google → Enable → Save.${tag}`;
+  if (code === 'permission-denied' || /insufficient permissions/i.test(msg))
+    return `Firestore's rules are blocking saves. Paste the rules from firestore.rules into Firestore Database → Rules and publish.${tag}`;
+  if (/database .*does not exist/i.test(msg) || code === 'not-found')
+    return `The Firestore database wasn't found. In the Firebase console, open Firestore Database and check a database named (default) exists in project ${firebaseConfig?.projectId ?? ''}.${tag}`;
+  if (code === 'unavailable' || code === 'auth/network-request-failed')
+    return `Couldn't reach the cloud save. If you're online, a missing Firestore database can also cause this. Your game is still saved on this device.${tag}`;
   return msg;
 }
 
