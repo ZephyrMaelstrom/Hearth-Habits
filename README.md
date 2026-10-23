@@ -1,1 +1,59 @@
-# Hearth-Habits
+# Hearth & Habits
+
+A habit-building RPG with a friendly wisp named Ember. You do real-life tasks,
+your hero levels up, and a balancing engine keeps the rewards fair, so a hard,
+dreaded task pays more than an easy one and spamming taps can't buy levels.
+
+**Play it:** <https://zephyrmaelstrom.github.io/Hearth-Habits/>
+Install it from the browser to your home screen; it works offline.
+
+## What's in this build (Phase 1: the core loop)
+
+- **Tasks.** Dailies on chosen weekdays, Habits with + and −, and To-dos with
+  due dates. Write your own or pick from a library of 100 ready-made ones,
+  each written as a cue and an action ("After I get home from work, I will
+  walk for 20 minutes").
+- **Balancing Engine.** Each task is priced from Effort, Dread and minutes
+  into one of five tiers (Trivial 5 XP up to Epic 60 XP), with a live preview
+  while you edit. Momentum rewards finishing what you schedule, a weekly cap
+  and a daily ceiling stop runaway self-reporting, and a Daily Spark pays the
+  first task of each day.
+- **Character.** Levels, seven stats (Might, Vigor, Mind, Craft, Spirit,
+  Bond, Fortune) shown as a heptagon, Harmony for balanced growth, and
+  Graduation: a Daily you keep up at 95% for four weeks becomes a permanent
+  trait.
+- **Forgiveness.** Rest days, four Rough Days a month, and Vacation mode (up
+  to 14 days) protect streaks and Momentum.
+- **Rewards.** Price your own real-life treats in gold, sized from what you
+  actually earn. A cosmetic shop sells cloaks, hats and held items; gold buys
+  looks, never power.
+- **Ember.** Template messages in four tones (cheerful, dry, stoic, gentle),
+  a talkativeness setting, and a daily budget. Dismiss a kind of note three
+  times and she stops sending it.
+- **Install and sync.** Installable PWA, saves on the device, optional Google
+  sign-in sync through Firebase.
+- **Tester report.** Settings shows Gate 1 numbers (days opened, Dailies in
+  week 1 and week 2).
+
+Classes, Epics, the Vault, bosses, parties and guilds come in Phase 2 and
+later. The full plan is in the design document.
+
+## Setup
+
+See [docs/SETUP.md](docs/SETUP.md) for publishing, turning on sync and running
+the Gate 1 test.
+
+```sh
+npm install
+npm run dev
+npm test
+```
+
+## Code map
+
+| Folder | What's there |
+| --- | --- |
+| `src/engine` | Game rules with no UI: pricing, levels, Momentum, day rollover, actions, Ember's messages, tester metrics. `rules.ts` holds every tuning number from Phase 0. |
+| `src/store` | Saved state (localStorage), Firebase sync, install prompt. |
+| `src/ui` | React screens: Today, Hero, Rewards, Settings, onboarding, task editor, Ember's panel. |
+| `tests` | Engine tests that re-check the Phase 0 balancing numbers, plus a full play-through of the app. |
