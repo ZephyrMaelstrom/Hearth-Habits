@@ -240,6 +240,8 @@ export interface MemberSummary {
   uid: string;
   name: string;
   level: number;
+  /** Level at the start of the week: boss HP doesn't grow when you level up mid-fight. */
+  fightLevel?: number;
   cls: ClassId | null;
   title: string | null;
   shape: Record<Stat, number>;

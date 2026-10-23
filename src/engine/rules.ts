@@ -80,8 +80,8 @@ export const P2 = {
   },
   boss: {
     /** Boss HP per active member: base x (1 + perLevel x (level - 1)), level capped. */
-    hpBase: 750,
-    hpPerLevel: 0.035,
+    hpBase: 580,
+    hpPerLevel: 0.0365,
     hpLevelCap: 60,
     strikeBelow: 0.7,
     strikePct: 0.3,

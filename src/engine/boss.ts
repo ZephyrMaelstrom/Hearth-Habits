@@ -75,10 +75,12 @@ export function selfSummary(s: State, memberId: string, week: DayKey = weekStart
     .filter((c) => c.kind !== 'habitMinus' && c.counted > 0 && c.day >= addDays(s.today, -1))
     .slice(-8)
     .map((c) => ({ id: c.id, at: c.ts, tier: c.tier, stats: c.stats }));
+  const gainedThisWeek = s.completions.filter((c) => c.day >= week).reduce((a, c) => a + c.xp, 0);
   return {
     uid: memberId,
     name: s.profile.name || 'Adventurer',
     level: levelFromXp(s.xp),
+    fightLevel: levelFromXp(Math.max(0, s.xp - gainedThisWeek)),
     cls: s.cls?.id ?? null,
     title: s.title,
     shape: statLevels(s),
@@ -163,7 +165,7 @@ export function resolveFight(week: DayKey, members: MemberSummary[], today: DayK
     const start = m.joinDay > week ? m.joinDay : week;
     return Math.max(1, daysBetween(start, weekEnd) + 1) / 7;
   };
-  const maxHp = Math.max(1, Math.round(active.reduce((a, m) => a + memberBossHp(m.level) * Math.min(1, prorate(m)), 0)));
+  const maxHp = Math.max(1, Math.round(active.reduce((a, m) => a + memberBossHp(m.fightLevel ?? m.level) * Math.min(1, prorate(m)), 0)));
   let hp = maxHp;
   const st = new Map(active.map((m) => [m.uid, { hp: m.maxHp, downed: false, damage: 0, secondWindUsed: false, downedDay: '' as DayKey }]));
   const inspire = Math.max(0, ...active.map((m) => m.aura.inspire));
