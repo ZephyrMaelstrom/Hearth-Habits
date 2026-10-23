@@ -1,0 +1,77 @@
+name: Ember
+
+# Every hour: writes Ember's AI morning plans and weekly reviews, sends
+# reminders, and once a day computes the Gate 3 numbers. It runs the server
+# code from the newest phase-N branch with work not yet in main (so a preview
+# can be tested), otherwise from main. Set the SERVER_BRANCH repository
+# variable to pin a branch.
+#
+# Needs repository secrets (Settings > Secrets and variables > Actions):
+#   FIREBASE_SERVICE_ACCOUNT  the JSON key of a Firebase service account
+#   ANTHROPIC_API_KEY         for AI plans and reviews (optional: without it, no AI)
+#   VAPID_PRIVATE_KEY         for push reminders (optional: without it, no pushes)
+# Missing secrets are reported in the run summary; nothing breaks.
+
+on:
+  schedule:
+    - cron: '7 * * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Log what would happen, without calling Claude, sending pushes or writing'
+        type: boolean
+        default: false
+      force_hour:
+        description: 'Pretend every player is at this local hour (0-23), for testing'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ember
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pick the code to run
+        id: pick
+        run: |
+          ref="${{ vars.SERVER_BRANCH }}"
+          if [ -z "$ref" ]; then
+            ref=main
+            git fetch --quiet origin '+refs/heads/phase-*:refs/remotes/origin/phase-*' || true
+            for b in $(git for-each-ref --format='%(refname:lstrip=3)' 'refs/remotes/origin/phase-*' | sort -V -r); do
+              if [ "$(git rev-list --count origin/main..origin/$b)" -gt 0 ]; then ref=$b; break; fi
+            done
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Running server code from $ref" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pick.outputs.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run Ember
+        run: |
+          if [ ! -f server/package.json ]; then
+            echo "No server code on this branch yet." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          cd server
+          npm ci --no-audit --no-fund
+          npx tsx hourly.ts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          FORCE_HOUR: ${{ inputs.force_hour }}

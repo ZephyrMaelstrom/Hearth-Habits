@@ -1,8 +1,8 @@
 name: Test and deploy
 
 # Every push to main runs the tests, builds the app and publishes it to
-# GitHub Pages. If a phase-2 branch exists, its build is published alongside
-# at /preview/ (the Preview workflow on that branch triggers this one).
+# GitHub Pages. The newest phase-N branch with work not yet in main is built
+# alongside at /preview/ (the Preview workflow on that branch triggers this one).
 # Pull requests run the tests and build only.
 
 on:
@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -37,9 +39,14 @@ jobs:
         id: preview
         if: github.event_name != 'pull_request'
         run: |
-          if git ls-remote --exit-code --heads origin phase-2 > /dev/null; then
-            echo "branch=phase-2" >> "$GITHUB_OUTPUT"
-          fi
+          git fetch --quiet origin '+refs/heads/phase-*:refs/remotes/origin/phase-*' || true
+          for b in $(git for-each-ref --format='%(refname:lstrip=3)' 'refs/remotes/origin/phase-*' | sort -V -r); do
+            if [ "$(git rev-list --count origin/main..origin/$b)" -gt 0 ]; then
+              echo "branch=$b" >> "$GITHUB_OUTPUT"
+              echo "Preview: $b"
+              break
+            fi
+          done
       - uses: actions/checkout@v4
         if: steps.preview.outputs.branch != ''
         with:
