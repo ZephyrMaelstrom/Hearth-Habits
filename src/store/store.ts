@@ -5,24 +5,39 @@ import { useSyncExternalStore } from 'react';
 import type { Result } from '../engine/actions';
 import { rollover } from '../engine/rollover';
 import { migrate, newState } from '../engine/state';
+import { checkBoss } from '../engine/boss';
+import { checkAchievements } from '../engine/achievements';
 import type { State } from '../engine/types';
 import { STORAGE_KEY } from '../channel';
 
 const KEY = STORAGE_KEY;
 type Listener = () => void;
 
-let state: State = load();
 const listeners = new Set<Listener>();
 let onChange: ((s: State) => void) | null = null;
+let eventSink: ((lines: string[]) => void) | null = null;
+let state: State = load();
 
 function load(): State {
   try {
     const raw = globalThis.localStorage?.getItem(KEY);
     const s = raw ? migrate(JSON.parse(raw)) : newState();
-    return rollover(s, new Date());
+    return post(rollover(s, new Date())).state;
   } catch {
     return newState();
   }
+}
+
+/** After any change: settle a beaten boss and award new achievements. */
+function post(s: State): { state: State; events: string[] } {
+  if (!s.profile.onboarded) return { state: s, events: [] };
+  const b = checkBoss(s);
+  const a = checkAchievements(b.state);
+  return { state: a.state, events: [...b.events, ...a.earned.map((n) => `Achievement unlocked: ${n}`)] };
+}
+
+function emitEvents(lines: string[]) {
+  if (lines.length) eventSink?.(lines);
 }
 
 function save(s: State) {
@@ -50,17 +65,26 @@ function set(next: State, fromSync = false) {
   if (!fromSync) onChange?.(state);
 }
 
-/** Run an engine action; returns its error message, if any. */
+/** Run an engine action; returns its error message, if any. Loot and other news go to the event sink. */
 export function act(fn: (s: State) => Result): string | undefined {
   const r = fn(state);
   if (r.error) return r.error;
-  set(r.state);
+  const p = post(r.state);
+  set(p.state);
+  emitEvents([...(r.events ?? []), ...p.events]);
   return undefined;
 }
 
 /** Bring the game up to the current day (call on open, focus and every minute). */
 export function tick(now: Date = new Date()) {
-  set(rollover(state, now));
+  const p = post(rollover(state, now));
+  set(p.state);
+  emitEvents(p.events);
+}
+
+/** Where loot, crits and achievements are announced (the app shows them as toasts). */
+export function onEvents(fn: (lines: string[]) => void) {
+  eventSink = fn;
 }
 
 /** Replace local state with a newer copy from sync. */

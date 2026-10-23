@@ -8,6 +8,7 @@ import { KIND_LABEL } from '../engine/wisp';
 import { canInstall, isStandalone, onInstallChange, promptInstall } from '../store/install';
 import { act, replaceFromImport, resetAll, useGame } from '../store/store';
 import { retrySync, signIn, signOut, syncConfigured, syncInfo, useSync } from '../store/sync';
+import { IS_PREVIEW, MAIN_STORAGE_KEY } from '../channel';
 
 export const TONES: { id: Tone; label: string; sample: string }[] = [
   { id: 'cheerful', label: 'Cheerful', sample: '"30 days of walks in a row. That\'s how habits stick!"' },
@@ -32,6 +33,7 @@ export function Settings({ toast }: { toast: (m: string) => void }) {
   return (
     <main className="screen" aria-label="Settings">
       <h1>Settings</h1>
+      {IS_PREVIEW && <PreviewCard toast={toast} />}
 
       <section className="card stack" aria-labelledby="you-h">
         <h2 id="you-h">You and Ember</h2>
@@ -196,7 +198,7 @@ export function Settings({ toast }: { toast: (m: string) => void }) {
       </section>
 
       <p className="tiny muted" style={{ textAlign: 'center' }}>
-        Hearth &amp; Habits · Phase 1 build · rules from Phase 0 (weekly cap {RULES.weekCap.toLocaleString('en-US')}, Spark +{RULES.spark})
+        Hearth &amp; Habits · {IS_PREVIEW ? 'Phase 2 preview' : 'Phase 2'} · rules from Phase 0 (weekly cap {RULES.weekCap.toLocaleString('en-US')}, Spark +{RULES.spark})
       </p>
     </main>
   );
@@ -252,6 +254,29 @@ function SyncCard({ toast }: { toast: (m: string) => void }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+function PreviewCard({ toast }: { toast: (m: string) => void }) {
+  const copyMain = () => {
+    try {
+      const raw = localStorage.getItem(MAIN_STORAGE_KEY);
+      if (!raw) return toast('No main game on this device to copy.');
+      if (!confirm('Replace this preview game with a copy of your main game? Your main game is not changed.')) return;
+      replaceFromImport(JSON.parse(raw));
+      toast('Copied your main game into the preview.');
+    } catch {
+      toast('Could not read the main game on this device.');
+    }
+  };
+  return (
+    <section className="card warm stack" aria-labelledby="prev-h">
+      <h2 id="prev-h">Phase 2 preview</h2>
+      <p className="small">This is a test build. It keeps its own save on this device and its own cloud copy, so nothing here touches your main game or the Gate 1 tester report.</p>
+      <button type="button" className="btn small" onClick={copyMain}>
+        Copy my main game into the preview
+      </button>
     </section>
   );
 }

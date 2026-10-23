@@ -33,6 +33,21 @@ let uid: string | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let lastPushed = 0;
 
+const authListeners = new Set<(uid: string | null) => void>();
+
+/** Called with the signed-in account id (or null) now and on every change. */
+export function onAuthChange(fn: (uid: string | null) => void) {
+  authListeners.add(fn);
+  fn(uid);
+  return () => authListeners.delete(fn);
+}
+
+/** Firestore access for other modules (parties), once signed in. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function fbHandle(): { db: any; fsMod: any; uid: string } | null {
+  return fb && uid ? { db: fb.db, fsMod: fb.fsMod, uid } : null;
+}
+
 export function useSync() {
   return useSyncExternalStore(
     (fn) => {
@@ -93,6 +108,7 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
     authMod.onAuthStateChanged(auth, async (user: { uid: string; email: string | null; displayName: string | null } | null) => {
       uid = user?.uid ?? null;
       userLabel = user?.email ?? user?.displayName ?? '';
+      authListeners.forEach((l) => l(uid));
       if (!user) {
         unlisten?.();
         unlisten = null;

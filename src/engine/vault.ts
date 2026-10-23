@@ -44,6 +44,7 @@ export function savedThisMonth(c: Coffer, today: DayKey): number {
 /** "At this pace" for a Coffer: average saved per day since it began. */
 export function cofferPace(c: Coffer, today: DayKey): { perDay: number; finishIn: number | null } {
   const days = Math.max(1, daysBetween(c.createdDay, today) + 1);
+  if (days < 7) return { perDay: 0, finishIn: null }; // a pace needs a week of history
   const perDay = saved(c) / days;
   const left = c.target - saved(c);
   return { perDay, finishIn: left <= 0 ? 0 : perDay > 0 ? Math.ceil(left / perDay) : null };

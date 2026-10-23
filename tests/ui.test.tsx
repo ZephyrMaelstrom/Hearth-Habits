@@ -53,9 +53,13 @@ describe('playing through the app', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     // other tabs render
+    fireEvent.click(screen.getByRole('button', { name: 'Quest' }));
+    expect(screen.getByRole('heading', { name: 'Quest' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Hero' }));
     expect(screen.getByRole('img', { name: /Stat shape/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Rewards' }));
+    fireEvent.click(screen.getByRole('button', { name: /Trophies/ }));
+    expect(screen.getByText('First Spark')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Treasury' }));
     expect(screen.getByRole('heading', { name: 'Your real-life rewards' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(screen.getByRole('heading', { name: /Tester report/ })).toBeTruthy();

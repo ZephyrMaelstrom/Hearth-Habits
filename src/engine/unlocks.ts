@@ -36,7 +36,7 @@ export const UNLOCK_TEXT: Record<string, { label: string; detail: string; action
   vault: {
     label: 'the Vault',
     detail: 'Savings goals and debts become quests. Your first entry each day pays like a Medium task, whatever the amount.',
-    actions: [{ label: 'Open the Vault', action: { type: 'openTab', tab: 'treasury' } }],
+    actions: [{ label: 'Open the Vault', action: { type: 'openTab', tab: 'treasury:vault' } }],
   },
   epics: {
     label: 'Epics',

@@ -1,38 +1,64 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as A from '../engine/actions';
 import type { WispMessage } from '../engine/types';
-import { act, tick, useGame } from '../store/store';
-import { Icon } from './components';
-import { Hero } from './Hero';
+import { act, onEvents, tick, useGame } from '../store/store';
+import { IS_PREVIEW } from '../channel';
+import { Icon, type IconName } from './components';
+import { Hero, type HeroView } from './Hero';
 import { Onboarding } from './Onboarding';
-import { Rewards } from './Rewards';
+import { Quest } from './Quest';
 import { Settings } from './Settings';
 import { TaskEditor } from './TaskEditor';
 import { Today } from './Today';
+import { Treasury, type TreasuryView } from './Treasury';
 import { WispPanel } from './WispPanel';
 
-type Tab = 'today' | 'hero' | 'rewards' | 'settings';
-const TABS: { id: Tab; label: string; icon: 'today' | 'hero' | 'rewards' | 'settings' }[] = [
+type Tab = 'today' | 'quest' | 'hero' | 'treasury' | 'settings';
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'today', label: 'Today', icon: 'today' },
+  { id: 'quest', label: 'Quest', icon: 'quest' },
   { id: 'hero', label: 'Hero', icon: 'hero' },
-  { id: 'rewards', label: 'Rewards', icon: 'rewards' },
+  { id: 'treasury', label: 'Treasury', icon: 'treasury' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ];
 
 export function App() {
   const s = useGame();
   const [tab, setTab] = useState<Tab>('today');
+  const [heroView, setHeroView] = useState<HeroView>('stats');
+  const [treasuryView, setTreasuryView] = useState<TreasuryView>('rewards');
   const [editor, setEditor] = useState<{ id?: string } | null>(null);
   const [wispOpen, setWispOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
+  const queue = useRef<string[]>([]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const toast = useCallback((m: string) => {
-    if (!m) return;
-    setToastMsg(m);
+  // toasts show one at a time, so a crit plus loot plus an achievement all get read
+  const next = useCallback(function show() {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setToastMsg(''), 3200);
+    const m = queue.current.shift();
+    if (!m) {
+      timer.current = null;
+      setToastMsg('');
+      return;
+    }
+    setToastMsg(m);
+    timer.current = setTimeout(show, 2800);
   }, []);
+  const toast = useCallback(
+    (m: string) => {
+      if (!m) return;
+      queue.current.push(m);
+      if (!timer.current) next();
+    },
+    [next],
+  );
+  useEffect(() => {
+    onEvents((lines) => {
+      queue.current.push(...lines);
+      if (!timer.current) next();
+    });
+  }, [next]);
 
   // keep the game on today's date: on focus, on return to the tab, and every minute
   useEffect(() => {
@@ -45,6 +71,21 @@ export function App() {
       window.removeEventListener('focus', onVisible);
       clearInterval(iv);
     };
+  }, []);
+
+  const openTab = useCallback((target: string) => {
+    const [t, sub] = target.split(':');
+    if (t === 'rewards') {
+      setTab('treasury');
+      setTreasuryView('rewards');
+    } else if (t === 'hero') {
+      setTab('hero');
+      if (sub) setHeroView(sub as HeroView);
+    } else if (t === 'treasury') {
+      setTab('treasury');
+      if (sub) setTreasuryView(sub as TreasuryView);
+    } else setTab(t as Tab);
+    window.scrollTo?.(0, 0);
   }, []);
 
   const onWispAction = useCallback(
@@ -71,7 +112,7 @@ export function App() {
           break;
         case 'openTab':
           setWispOpen(false);
-          setTab(a.tab as Tab);
+          openTab(a.tab);
           break;
         case 'dismiss':
           act((st) => A.dismissMessage(st, m.id, true));
@@ -80,22 +121,26 @@ export function App() {
       if (err) return toast(err);
       act((st) => A.dismissMessage(st, m.id, false));
     },
-    [toast],
+    [toast, openTab],
   );
 
   if (!s.profile.onboarded) return <Onboarding />;
 
   return (
     <div className="app">
-      {tab === 'today' && <Today openEditor={(id) => setEditor({ id })} openWisp={() => setWispOpen(true)} onWispAction={onWispAction} toast={toast} />}
-      {tab === 'hero' && <Hero />}
-      {tab === 'rewards' && <Rewards toast={toast} />}
+      {IS_PREVIEW && <div className="preview-ribbon">Phase 2 preview · separate save from the main app</div>}
+      {tab === 'today' && (
+        <Today openEditor={(id) => setEditor({ id })} openWisp={() => setWispOpen(true)} onWispAction={onWispAction} toast={toast} openQuest={() => openTab('quest')} />
+      )}
+      {tab === 'quest' && <Quest toast={toast} goSettings={() => openTab('settings')} />}
+      {tab === 'hero' && <Hero view={heroView} setView={setHeroView} toast={toast} />}
+      {tab === 'treasury' && <Treasury view={treasuryView} setView={setTreasuryView} toast={toast} />}
       {tab === 'settings' && <Settings toast={toast} />}
 
       <div className="tabbar">
-        <nav aria-label="Main">
+        <nav aria-label="Main" className="five">
           {TABS.map((t) => (
-            <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
+            <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => openTab(t.id)}>
               <Icon name={t.icon} />
               {t.label}
             </button>
@@ -106,7 +151,7 @@ export function App() {
       {editor && <TaskEditor taskId={editor.id} onClose={() => setEditor(null)} toast={toast} />}
       {wispOpen && <WispPanel onClose={() => setWispOpen(false)} onAction={onWispAction} />}
       {toastMsg && (
-        <div className="toast" role="status">
+        <div className="toast" role="status" onClick={next}>
           {toastMsg}
         </div>
       )}

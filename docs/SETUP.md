@@ -80,6 +80,48 @@ How you read the results, either way:
 - **Without sync:** each tester opens **Settings → Tester report → Copy
   report** after day 14 and texts it to you.
 
+## 4. Phase 2: the preview, then shipping it
+
+Phase 2 (the game layer) lives on the `phase-2` branch. It's published as a
+**preview** beside the main app, so Gate 1 testers on the main link are never
+affected:
+
+- **Main app (Gate 1 testers):** <https://zephyrmaelstrom.github.io/Hearth-Habits/>
+- **Phase 2 preview:** <https://zephyrmaelstrom.github.io/Hearth-Habits/preview/>
+
+The preview keeps its own save on each device and its own cloud copy
+(`users/{uid}/state/preview`), and never writes the Gate 1 tester report.
+**Settings → Copy my main game into the preview** starts it from your real
+hero. Installed to a home screen, it's labelled "Hearth Preview".
+
+Every push to `phase-2` runs the tests, then republishes the site with the
+preview updated (the **Preview** workflow triggers **Test and deploy** on
+`main`).
+
+### Publish the new Firestore rules (needed for parties)
+
+Parties use a new `parties` collection. Until the rules allow it, creating or
+joining a party shows a "rules don't allow parties yet" message.
+
+1. Firebase console → **Firestore Database → Rules**.
+2. Replace everything with the current [`firestore.rules`](../firestore.rules)
+   → **Publish**.
+
+The new rules still give every player access only to their own save. They add:
+anyone signed in who knows a party's code can join it (6 members max), only
+members can read the party's weekly summaries, and each player can only write
+their own.
+
+### Ship Phase 2 to everyone (after Gate 1 passes)
+
+1. On GitHub, open a pull request from `phase-2` into `main`, then merge it.
+2. The main app updates within about two minutes. Existing saves upgrade
+   automatically (version 1 to version 2) with nothing lost. Players already
+   past level 3 start their first boss week right away, and Ember explains
+   each new system as their budget of notes allows.
+3. Optional cleanup: delete the `phase-2` branch. The preview stops updating;
+   the last preview build stays at `/preview/` until the next main deploy.
+
 ## Running it on your own computer
 
 You need Node 20 or newer.

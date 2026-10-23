@@ -104,6 +104,7 @@ export function projection(e: Epic, today: DayKey): { text: string; day: DayKey 
   if (e.doneDay) return { text: `Finished ${shortDay(e.doneDay)}.`, day: e.doneDay, early: daysBetween(e.doneDay, e.deadline) };
   if (!done) return { text: `Due ${shortDay(e.deadline)}. Check off the first milestone to see your pace.`, day: null, early: null };
   const elapsed = Math.max(1, daysBetween(e.createdDay, today) + 1);
+  if (elapsed < 3) return { text: `Due ${shortDay(e.deadline)}. Your pace shows after a few days.`, day: null, early: null };
   const finish = addDays(e.createdDay, Math.ceil((elapsed / done) * total) - 1);
   const early = daysBetween(finish, e.deadline);
   const when = early > 0 ? `${early} day${early > 1 ? 's' : ''} early` : early === 0 ? 'right on time' : `${-early} day${early < -1 ? 's' : ''} late`;
