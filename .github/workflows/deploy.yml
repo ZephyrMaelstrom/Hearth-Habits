@@ -1,7 +1,9 @@
 name: Test and deploy
 
 # Every push to main runs the tests, builds the app and publishes it to
-# GitHub Pages. Pull requests run the tests and build only.
+# GitHub Pages. If a phase-2 branch exists, its build is published alongside
+# at /preview/ (the Preview workflow on that branch triggers this one).
+# Pull requests run the tests and build only.
 
 on:
   push:
@@ -30,6 +32,32 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
+
+      - name: Look for a preview branch
+        id: preview
+        if: github.event_name != 'pull_request'
+        run: |
+          if git ls-remote --exit-code --heads origin phase-2 > /dev/null; then
+            echo "branch=phase-2" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.preview.outputs.branch != ''
+        with:
+          ref: ${{ steps.preview.outputs.branch }}
+          path: preview-src
+      - name: Build the preview into dist/preview
+        if: steps.preview.outputs.branch != ''
+        # a broken preview never blocks the main app
+        continue-on-error: true
+        working-directory: preview-src
+        env:
+          VITE_CHANNEL: preview
+        run: |
+          npm ci
+          npm run build
+          mkdir -p ../dist/preview
+          cp -r dist/. ../dist/preview/
+
       - uses: actions/upload-pages-artifact@v3
         if: github.event_name != 'pull_request'
         with:
