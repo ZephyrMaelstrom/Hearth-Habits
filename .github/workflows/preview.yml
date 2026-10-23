@@ -1,0 +1,36 @@
+name: Preview
+
+# Pushes to phase-2 run the tests and a preview build, then ask the main
+# deploy workflow to republish the site with this branch at /preview/.
+# The main app at the site root is rebuilt from main, unchanged.
+
+on:
+  push:
+    branches: [phase-2]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_CHANNEL: preview
+
+  publish:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"
+        env:
+          GH_TOKEN: ${{ github.token }}

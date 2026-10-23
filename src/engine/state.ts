@@ -1,6 +1,7 @@
 import { dayKey, weekStart, monthKey, weekday } from './dates';
 import { RULES } from './rules';
-import { STATS, type DayKey, type State, type Stat, type Task } from './types';
+import { levelFromXp } from './progress';
+import { STATS, type Counters, type DayKey, type State, type Stat, type Task } from './types';
 
 export function uid(): string {
   const c = globalThis.crypto as Crypto | undefined;
@@ -15,7 +16,7 @@ export function emptyStats(): Record<Stat, number> {
 export function newState(now: Date = new Date()): State {
   const today = dayKey(now);
   return {
-    version: 1,
+    version: 2,
     profile: {
       name: '',
       tone: 'cheerful',
@@ -54,7 +55,40 @@ export function newState(now: Date = new Date()): State {
     },
     lastLevel: 1,
     updatedAt: now.getTime(),
+    ...phase2Defaults(today),
   };
+}
+
+/** Everything Phase 2 added to a save, empty. */
+export function phase2Defaults(today: DayKey) {
+  return {
+    cls: null,
+    skills: {},
+    mana: 0,
+    inventory: [],
+    gear: {},
+    pets: [],
+    activePet: null,
+    bag: { eggs: {}, potions: {}, food: 0, healing: 0 },
+    trophies: [],
+    titles: [],
+    title: null,
+    achievements: {},
+    counters: emptyCounters(),
+    bounties: { day: '', list: [], rerolled: false, bonusClaimed: false },
+    vault: { coffers: [], debts: [], month: monthKey(today) },
+    epics: [],
+    epicChest: { day: null, owed: 0 },
+    combat: { week: weekStart(today), startDay: null, casts: [], surgeArmed: false, results: [] },
+    buffs: [],
+    party: null,
+    partyView: null,
+    social: { cheers: [], rescues: [], pendingRescue: null, seen: [], received: { day: '', cheers: 0 } },
+  } satisfies Partial<State>;
+}
+
+export function emptyCounters(): Counters {
+  return { perfectDays: 0, bossWins: 0, bossKinds: [], flawless: 0, hatched: 0, cheersGiven: 0, rescuesGiven: 0, bountyFullDays: 0, epicsDone: 0, dragonsSlain: 0 };
 }
 
 /** Fill any fields an older save is missing, so saves survive app updates. */
@@ -62,9 +96,10 @@ export function migrate(raw: unknown, now: Date = new Date()): State {
   const base = newState(now);
   if (!raw || typeof raw !== 'object') return base;
   const s = raw as Partial<State>;
-  return {
+  const out = {
     ...base,
     ...s,
+    version: 2,
     profile: { ...base.profile, ...(s.profile ?? {}) },
     statXp: { ...base.statXp, ...(s.statXp ?? {}) },
     week: s.week ?? base.week,
@@ -72,7 +107,17 @@ export function migrate(raw: unknown, now: Date = new Date()): State {
     wisp: { ...base.wisp, ...(s.wisp ?? {}) },
     rough: s.rough ?? base.rough,
     equipped: { ...base.equipped, ...(s.equipped ?? {}) },
+    bag: { ...base.bag, ...(s.bag ?? {}) },
+    counters: { ...base.counters, ...(s.counters ?? {}) },
+    bounties: s.bounties ?? base.bounties,
+    vault: { ...base.vault, ...(s.vault ?? {}) },
+    epicChest: s.epicChest ?? base.epicChest,
+    combat: { ...base.combat, ...(s.combat ?? {}) },
+    social: { ...base.social, ...(s.social ?? {}) },
   } as State;
+  // A Phase 1 save that is already past level 3 starts its first boss week now.
+  if (!out.combat.startDay && levelFromXp(out.xp) >= 3) out.combat.startDay = out.today;
+  return out;
 }
 
 /** Is this Daily due on `day` (before rest days and vacation are considered)? */

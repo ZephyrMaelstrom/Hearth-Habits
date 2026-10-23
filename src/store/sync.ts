@@ -10,6 +10,7 @@ import { useSyncExternalStore } from 'react';
 import { firebaseConfig } from '../firebase-config';
 import { testerReport } from '../engine/metrics';
 import type { State } from '../engine/types';
+import { CLOUD_DOC, IS_PREVIEW } from '../channel';
 
 export type SyncStatus = 'off' | 'loading' | 'signed-out' | 'syncing' | 'synced' | 'error';
 
@@ -63,7 +64,7 @@ export async function initSync(getLocal: () => State, onRemote: (s: State) => vo
       const user = auth.currentUser as { uid: string } | null;
       if (!user) return;
       setStatus('syncing');
-      const ref = fsMod.doc(db, 'users', user.uid, 'state', 'main');
+      const ref = fsMod.doc(db, 'users', user.uid, 'state', CLOUD_DOC);
       try {
         const snap = await fsMod.getDoc(ref);
         const local = getLocal();
@@ -144,10 +145,11 @@ async function write(s: State) {
   if (!fb || !uid) return;
   const { fsMod, db } = fb;
   lastPushed = s.updatedAt;
-  await fsMod.setDoc(fsMod.doc(db, 'users', uid, 'state', 'main'), {
+  await fsMod.setDoc(fsMod.doc(db, 'users', uid, 'state', CLOUD_DOC), {
     data: JSON.stringify(s),
     updatedAt: s.updatedAt,
   });
+  if (IS_PREVIEW) return; // the Gate 1 tester summary comes from the main app only
   const r = testerReport(s);
   await fsMod.setDoc(
     fsMod.doc(db, 'testers', uid),

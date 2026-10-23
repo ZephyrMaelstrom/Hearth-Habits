@@ -6,8 +6,9 @@ import type { Result } from '../engine/actions';
 import { rollover } from '../engine/rollover';
 import { migrate, newState } from '../engine/state';
 import type { State } from '../engine/types';
+import { STORAGE_KEY } from '../channel';
 
-const KEY = 'hearth-habits:state:v1';
+const KEY = STORAGE_KEY;
 type Listener = () => void;
 
 let state: State = load();
